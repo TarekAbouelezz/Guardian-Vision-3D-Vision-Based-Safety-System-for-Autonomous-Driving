@@ -9,6 +9,13 @@ depth:
 device: cpu
 confidence_threshold: 0.0
 
+risk:
+  critical_distance_m: 7.0
+  warning_distance_m: 15.0
+  reaction_time_s: 1.0
+  deceleration_mps2: 6.0
+  warning_buffer_m: 5.0
+
 paths:
   image: ../street_scene.jpg
   output_images: outputs/images
