@@ -9,6 +9,10 @@ import numpy as np
 class BaseDepthEstimator(ABC):
     """Abstract interface for pluggable monocular depth estimators."""
 
+    def estimate(self, image: np.ndarray) -> np.ndarray:
+        """Compatibility alias for the canonical dense-depth method."""
+        return self.estimate_depth(image)
+
     @abstractmethod
     def load_model(self) -> None:
         """Load model weights and initialize inference components."""
