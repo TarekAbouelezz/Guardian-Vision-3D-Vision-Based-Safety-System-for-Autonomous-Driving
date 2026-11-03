@@ -1,0 +1,25 @@
+# Python environments and caches
+.venv/
+.venv-*/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# IDE and local tooling
+.vscode/
+.idea/
+*.ipynb_checkpoints/
+
+# Local data, model weights, and generated outputs
+dataset/images/
+dataset/velodyne/
+dataset/vis/
+dataset/yolo/
+datasets/
+*.pt
+*.pth
+outputs/
+
+# Local secrets and calibration artifacts
+.env
+*.local.yaml

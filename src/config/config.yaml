@@ -5,6 +5,7 @@ detector:
 depth:
   model: depth_anything
   model_path: ""
+  calibration_path: ""
 
 device: cpu
 confidence_threshold: 0.0
