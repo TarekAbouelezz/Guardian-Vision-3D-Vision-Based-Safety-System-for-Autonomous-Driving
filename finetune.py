@@ -52,7 +52,8 @@ def evaluate_model(model_path: Path, image_dir: Path, test_ids: Path, kitti_labe
     """Evaluate one model and export recall/AP50 grouped by ground-truth distance."""
     model = YOLO(str(model_path))
     records: dict[str, dict[str, list[float] | int]] = defaultdict(lambda: {"scores": [], "matches": [], "positives": 0})
-    for frame_id in (line.strip() for line in test_ids.read_text(encoding="utf-8").splitlines() if line.strip()):
+    for manifest_entry in (line.strip() for line in test_ids.read_text(encoding="utf-8").splitlines() if line.strip()):
+        frame_id = Path(manifest_entry).stem
         image_candidates = list(image_dir.glob(f"{frame_id}.*"))
         if not image_candidates:
             LOGGER.warning("Skipping missing image %s", frame_id)
