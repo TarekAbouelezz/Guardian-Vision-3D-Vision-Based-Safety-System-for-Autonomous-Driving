@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from pathlib import Path
+from typing import Sequence
 
 import cv2
 import numpy as np
@@ -10,13 +11,14 @@ import torch
 from transformers import AutoImageProcessor, AutoModelForDepthEstimation
 
 from src.depth.base import BaseDepthEstimator
+from src.depth.calibration import LinearDepthCalibration
 
 
 LOGGER = logging.getLogger(__name__)
 
 
 class DepthAnythingEstimator(BaseDepthEstimator):
-    """Depth estimator using pretrained Depth Anything V2 weights."""
+    """Depth estimator backed by Depth Anything V2 Hugging Face weights."""
 
     DEFAULT_MODEL_ID = "depth-anything/Depth-Anything-V2-Small-hf"
 
@@ -25,10 +27,12 @@ class DepthAnythingEstimator(BaseDepthEstimator):
         model_path: str = "",
         device: str = "cpu",
         output_dir: str = "outputs/depth",
+        calibration_path: str = "",
     ) -> None:
         self.model_path = model_path.strip() if model_path else self.DEFAULT_MODEL_ID
         self.output_dir = Path(output_dir)
         self.device = self._resolve_device(device)
+        self.calibration = LinearDepthCalibration.load(Path(calibration_path)) if calibration_path else None
         self.image_processor: AutoImageProcessor | None = None
         self.model: AutoModelForDepthEstimation | None = None
         self.load_model()
@@ -41,7 +45,6 @@ class DepthAnythingEstimator(BaseDepthEstimator):
         return normalized
 
     def load_model(self) -> None:
-        """Load Depth Anything V2 model and image processor."""
         try:
             self.image_processor = AutoImageProcessor.from_pretrained(self.model_path)
             self.model = AutoModelForDepthEstimation.from_pretrained(self.model_path)
@@ -53,7 +56,6 @@ class DepthAnythingEstimator(BaseDepthEstimator):
             raise RuntimeError(f"Unable to load depth model: {self.model_path}") from exc
 
     def estimate_depth(self, image: np.ndarray) -> np.ndarray:
-        """Run monocular depth estimation on an image."""
         if image is None or image.size == 0:
             raise ValueError("estimate_depth received an empty image")
         if self.image_processor is None or self.model is None:
@@ -73,17 +75,34 @@ class DepthAnythingEstimator(BaseDepthEstimator):
             mode="bicubic",
             align_corners=False,
         ).squeeze()
+        return resized.detach().cpu().numpy().astype(np.float32)
 
-        depth_map = resized.detach().cpu().numpy().astype(np.float32)
-        return depth_map
+    def estimate(self, image: np.ndarray) -> np.ndarray:
+        return self.estimate_depth(image)
+
+    def get_distance(self, depth_map: np.ndarray, bbox: Sequence[float]) -> float:
+        x1, y1, x2, y2 = [int(v) for v in bbox]
+
+        cx = (x1 + x2) // 2
+        cy = (y1 + y2) // 2
+        half_w = max(1, (x2 - x1) // 4)
+        half_h = max(1, (y2 - y1) // 4)
+
+        crop = depth_map[
+            max(0, cy - half_h): min(depth_map.shape[0], cy + half_h),
+            max(0, cx - half_w): min(depth_map.shape[1], cx + half_w),
+        ]
+
+        if crop.size == 0:
+            return float(depth_map[min(max(cy, 0), depth_map.shape[0] - 1), min(max(cx, 0), depth_map.shape[1] - 1)])
+        relative = float(np.median(crop))
+        return float(self.calibration.apply(relative)) if self.calibration else relative
 
     def visualize(self, depth_map: np.ndarray) -> str:
-        """Colorize and save depth map visualization to outputs/depth."""
         if depth_map is None or depth_map.size == 0:
             raise ValueError("visualize received an empty depth map")
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
-
         depth_min = float(np.min(depth_map))
         depth_max = float(np.max(depth_map))
 

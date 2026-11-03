@@ -1,27 +1,14 @@
 from __future__ import annotations
 
-import numpy as np
-
-from src.depth.base import BaseDepthEstimator
+from src.depth.relative_transformer import TransformerRelativeEstimator
 
 
-class MiDaSEstimator(BaseDepthEstimator):
-    """Placeholder MiDaS estimator for future experiments."""
+class MiDaSEstimator(TransformerRelativeEstimator):
+    """MiDaS/DPT relative estimator with optional training calibration."""
 
-    def __init__(self, model_path: str, device: str) -> None:
-        self.model_path = model_path
-        self.device = device
-
-    def estimate_image(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("MiDaSEstimator is not implemented yet.")
+    def __init__(self, model_path: str = "Intel/dpt-hybrid-midas", device: str = "cpu", output_dir: str = "outputs/depth", calibration_path: str = "") -> None:
+        super().__init__(model_path, device, output_dir, calibration_path)
 
 
-class ZoeDepthEstimator(BaseDepthEstimator):
-    """Placeholder ZoeDepth estimator for future experiments."""
-
-    def __init__(self, model_path: str, device: str) -> None:
-        self.model_path = model_path
-        self.device = device
-
-    def estimate_image(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("ZoeDepthEstimator is not implemented yet.")
+class ZoeDepthEstimator(MiDaSEstimator):
+    """Compatibility alias using the same calibrated relative-depth contract."""

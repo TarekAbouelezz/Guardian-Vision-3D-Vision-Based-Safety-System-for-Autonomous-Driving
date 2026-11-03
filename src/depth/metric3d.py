@@ -1,16 +1,10 @@
 from __future__ import annotations
 
-import numpy as np
-
-from src.depth.base import BaseDepthEstimator
+from src.depth.relative_transformer import TransformerRelativeEstimator
 
 
-class Metric3DEstimator(BaseDepthEstimator):
-    """Placeholder Metric3D estimator for future experiments."""
+class Metric3DEstimator(TransformerRelativeEstimator):
+    """Metric-depth backend with the same training-only calibration contract."""
 
-    def __init__(self, model_path: str, device: str) -> None:
-        self.model_path = model_path
-        self.device = device
-
-    def estimate_image(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("Metric3DEstimator is not implemented yet.")
+    def __init__(self, model_path: str = "Intel/dpt-large", device: str = "cpu", output_dir: str = "outputs/depth", calibration_path: str = "") -> None:
+        super().__init__(model_path, device, output_dir, calibration_path)

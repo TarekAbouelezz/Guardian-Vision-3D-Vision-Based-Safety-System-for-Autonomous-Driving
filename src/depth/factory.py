@@ -4,6 +4,9 @@ from dataclasses import dataclass
 
 from src.depth.base import BaseDepthEstimator
 from src.depth.depth_anything import DepthAnythingEstimator
+from src.depth.geometric import GeometricDepthEstimator
+from src.depth.metric3d import Metric3DEstimator
+from src.depth.midas import MiDaSEstimator, ZoeDepthEstimator
 
 
 @dataclass(frozen=True)
@@ -14,6 +17,7 @@ class DepthConfig:
     model_path: str = ""
     device: str = "cpu"
     output_dir: str = "outputs/depth"
+    calibration_path: str = ""
 
 
 class _NotImplementedDepthEstimator(BaseDepthEstimator):
@@ -44,15 +48,19 @@ class DepthFactory:
                 model_path=config.model_path,
                 device=config.device,
                 output_dir=config.output_dir,
+                calibration_path=config.calibration_path,
             )
 
+        if model_name in {"geometric", "geometry"}:
+            return GeometricDepthEstimator(output_dir=config.output_dir)
+
         if model_name in {"metric3d", "metric_3d"}:
-            return _NotImplementedDepthEstimator(model_name="Metric3D")
+            return Metric3DEstimator(config.model_path or "Intel/dpt-large", config.device, config.output_dir, config.calibration_path)
 
         if model_name == "midas":
-            return _NotImplementedDepthEstimator(model_name="MiDaS")
+            return MiDaSEstimator(config.model_path or "Intel/dpt-hybrid-midas", config.device, config.output_dir, config.calibration_path)
 
         if model_name in {"zoedepth", "zoe_depth"}:
-            return _NotImplementedDepthEstimator(model_name="ZoeDepth")
+            return ZoeDepthEstimator(config.model_path or "Intel/dpt-hybrid-midas", config.device, config.output_dir, config.calibration_path)
 
         raise ValueError(f"Unsupported depth model: {config.model}")
