@@ -137,6 +137,12 @@ class YOLODetector(BaseDetector):
         )
         return str(output_path)
 
+    def detect_image_array(self, image: np.ndarray) -> List[Detection]:
+        """Run person detection on an in-memory BGR image."""
+        if image is None or image.size == 0:
+            raise ValueError("image must be a non-empty numpy array")
+        return self._detect_frame(image)
+
     def _detect_frame(self, frame: np.ndarray) -> List[Detection]:
         """Run person detection on a numpy image frame."""
         results = self.model.predict(source=frame, verbose=False, device=self.device)
