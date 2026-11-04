@@ -50,6 +50,101 @@ rendered, and the run used the geometric estimator rather than a calibrated
 learned-depth model. The detailed log is written to
 `outputs/fulltest_6566.log`.
 
+The annotated frames can be assembled into a video:
+
+```powershell
+python make_video.py --input outputs/fulltest_6566 `
+  --output outputs/fulltest_6566_guardian.mp4 --fps 20
+```
+
+The resulting video contains 6,567 frames at 20 FPS.
+
+## Full-dataset evaluation results
+
+The pretrained `yolo11n.pt` model was evaluated on all 6,567 images against
+the pedestrian rows in `dataset/labels`. A prediction was considered a true
+positive when its IoU with a ground-truth pedestrian box was at least 0.50.
+Distance was estimated with the geometric baseline from the predicted box
+height.
+
+| Metric | Result |
+|---|---:|
+| True positives | 5,538 |
+| False positives | 1,332 |
+| False negatives | 4,035 |
+| Precision | **80.61%** |
+| Recall | **57.85%** |
+| F1 score | **67.36%** |
+| Frame presence accuracy | **86.51%** |
+| Matched distance samples | 5,538 |
+| Distance MAE | **2.15 m** |
+| Distance AbsRel | **11.78%** |
+| Critical-zone recall | **90.71%** |
+| False-brake rate | **3.21%** |
+| Mean inference time | **70.13 ms/image** |
+
+Run the evaluation again with:
+
+```powershell
+python evaluate_full.py --weights yolo11n.pt `
+  --images dataset/images --labels dataset/labels `
+  --output outputs/results/full --imgsz 1280
+```
+
+Results are exported to `outputs/results/full/full_evaluation.json` and
+`outputs/results/full/matched_distances.csv`.
+
+These are baseline results from the pretrained detector and geometric depth;
+they are not fine-tuned-model results. Frame presence accuracy should not be
+confused with object recall: it only measures whether a frame contains at
+least one predicted pedestrian when the labels contain at least one.
+
+## Strengths and limitations
+
+### Strengths
+
+- Modular detector/depth factories make it possible to compare models without
+  rewriting the pipeline.
+- Sequence-disjoint dataset splitting reduces leakage from adjacent video
+  frames.
+- The geometric baseline is transparent and uses known camera intrinsics and
+  pedestrian height.
+- The system reports uncertainty through a 3D Gaussian and makes the action
+  policy explicit.
+- The safety-oriented metrics include critical-zone recall and false-brake
+  rate, not only detector accuracy.
+- The complete dataset can be processed reproducibly and exported as images,
+  video, JSON, and CSV.
+
+### Limitations and disadvantages
+
+- The detector identifies pedestrians, not pedestrian intent. It can detect a
+  person walking beside the road or facing away who will never cross the
+  vehicle path. This can create unnecessary warnings or alarms.
+- There is currently no road geometry, drivable-area mask, crosswalk map,
+  pedestrian trajectory, pose, velocity, or time-to-collision model.
+  Therefore the action policy is distance-based rather than path-aware.
+- The pretrained baseline misses distant and very small pedestrians, which is
+  reflected by the 57.85% object recall. Fine-tuning is still required for
+  the final comparison.
+- Geometric distance assumes an approximately known pedestrian height and
+  reliable box height. Occlusion, truncation, detector errors, and unusual
+  poses can produce large distance errors.
+- Relative-depth models require calibration using training data. Without a
+  fitted calibration file, their values must not be interpreted as metres.
+- The current Gaussian is constructed for uncertainty representation, but the
+  zone decision uses the point distance rather than propagating covariance
+  probabilistically.
+- The reported frame accuracy is an auxiliary metric and can look high even
+  when object-level recall is low.
+- CPU inference is convenient but may not satisfy real-time requirements at
+  higher input resolutions or with transformer depth models.
+- CARLA imagery and synthetic labels may not represent all real-world
+  lighting, camera, weather, traffic, and pedestrian behaviours.
+- The current evaluation treats every pedestrian equally and does not model
+  occlusion severity or whether the pedestrian is actually in the ego
+  vehicle's collision corridor.
+
 ### Still required for the final research submission
 
 - Run the complete YOLO fine-tuning job and save the resulting checkpoint.
