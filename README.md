@@ -36,6 +36,20 @@ These smoke tests used `yolo11n.pt`, the geometric estimator, and CPU
 inference. They verify runtime integration and output generation; they are not
 the final detector or depth-model benchmark.
 
+The complete source image set was also processed successfully:
+
+```powershell
+python run_fulltest.py
+```
+
+This run processed **6,567 images**, generated **6,567 annotated outputs** in
+`outputs/fulltest_6566`, and completed with exit code 0. The pretrained
+detector reported at least one person in 2,986 frames. This is a pipeline
+smoke test, not a recall/mAP result: frames with no detections are still
+rendered, and the run used the geometric estimator rather than a calibrated
+learned-depth model. The detailed log is written to
+`outputs/fulltest_6566.log`.
+
 ### Still required for the final research submission
 
 - Run the complete YOLO fine-tuning job and save the resulting checkpoint.
