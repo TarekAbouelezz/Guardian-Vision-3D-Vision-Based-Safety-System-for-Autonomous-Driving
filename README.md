@@ -5,10 +5,66 @@ Applications of Computer Vision course at the University of Padova. It keeps
 the working Ultralytics YOLO detector and adds metric distance, 3D localization
 with uncertainty, risk zones, and a vehicle action policy.
 
+## Project status
+
+### Implemented and verified
+
+- CARLA KITTI-style annotation inspection and conversion to YOLO format.
+- Sequence/scenario-disjoint train/validation/test splitting.
+- YOLO detector factory and pedestrian-only detection.
+- Geometric distance baseline using `fy * 1.7 / bbox_height_px`.
+- Depth Anything V2, MiDaS/DPT, and Metric3D-named factory backends with
+  optional training-split affine calibration.
+- Central-region depth aggregation.
+- Pinhole 3D back-projection and 3D Gaussian covariance with squared
+  standard deviations.
+- Static configurable risk zones and most-critical system action.
+- Speed-derived stopping-distance and threshold-ablation helper functions.
+- Evaluation helpers for distance metrics, zone confusion, critical recall,
+  false-brake rate, timing hooks, CSVs, and plots.
+- Zone-coloured output images with distance labels and action banners.
+- Unit tests for labels, geometry, risk logic, and evaluation metrics.
+
+The latest geometric pipeline was executed successfully on:
+
+| Smoke test | Input images | Output images | Exit code |
+|---|---:|---:|---:|
+| 100-image run | 100 | 100 | 0 |
+| 200-image run | 200 | 200 | 0 |
+
+These smoke tests used `yolo11n.pt`, the geometric estimator, and CPU
+inference. They verify runtime integration and output generation; they are not
+the final detector or depth-model benchmark.
+
+### Still required for the final research submission
+
+- Run the complete YOLO fine-tuning job and save the resulting checkpoint.
+- Run pretrained **and** fine-tuned detector evaluation over the complete test
+  split and report the actual recall/mAP50 values for every distance bin.
+- Fit and persist calibration parameters for each relative-depth model using
+  training data only. The repository currently provides the calibration class,
+  but does not provide a complete dataset calibration command.
+- Run Depth Anything V2, MiDaS/DPT, and Metric3D experiments end-to-end and
+  record their MAE, AbsRel, inference time, zone metrics, and plots.
+- Validate the final thresholds against labelled ground-truth zones and
+  vehicle-speed scenarios.
+- Integrate the Gaussian uncertainty into a probabilistic risk decision. The
+  current runtime constructs the Gaussian, but zone classification currently
+  uses the point distance only.
+- Replace or explicitly document the `Metric3D` and `ZoeDepth` compatibility
+  backends: they currently use transformer relative-depth implementations,
+  not dedicated Metric3D/ZoeDepth model architectures.
+- Implement RT-DETR and GroundingDINO if alternative detector comparisons are
+  required; those classes remain explicit `NotImplementedError` placeholders.
+- Add a reproducible results table and plots generated from the final test
+  split to the report.
+
 ## Pipeline
 
 1. YOLO pedestrian detection.
-2. Distance estimation: `geometric`, `depth_anything`, `midas`, or `metric3d`.
+2. Distance estimation: `geometric`, `depth_anything`, `midas`, or
+   `metric3d` through the factory. The geometric estimator is the only one
+   that is immediately metric without a calibration file.
 3. Central-region distance aggregation and pinhole back-projection.
 4. A 3D Gaussian `(mean, covariance)` for every detection.
 5. Zone classification: monitoring (alarm), warning (reduce speed), and
@@ -58,7 +114,9 @@ depth:
 ```
 
 Relative-depth models must use a calibration JSON produced from the training
-split. The test split must not be used to fit it:
+split. The test split must not be used to fit it. Until such a file exists,
+the relative-depth output is not a valid metric distance and should not be
+used for final zone or safety claims:
 
 ```json
 {"scale": 12.4, "offset": 0.8}
@@ -121,6 +179,9 @@ python -m src.evaluation.run predictions.csv --output outputs/results
 It writes metric tables and a critical-recall/false-brake threshold-ablation
 plot under `outputs/results/`.
 
+The current evaluation code is an implementation of the reporting workflow;
+it does not imply that final benchmark numbers have already been produced.
+
 ## Tests
 
 ```powershell
@@ -129,6 +190,15 @@ python -m unittest discover -s tests -p "test_*.py"
 
 The tests cover label conversion, camera geometry, squared covariance
 variances, stopping-distance zones, action priority, and distance metrics.
+
+The current focused suite contains 11 tests:
+
+```text
+Ran 11 tests
+OK
+```
+
+The 100- and 200-image smoke tests were run separately from the unit suite.
 
 ## Third-party code and licenses
 
