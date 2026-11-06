@@ -168,6 +168,22 @@ def _view_frame_metrics(frame: FrameRecord, corridor_limit_m: float | None) -> d
         for prediction in frame.predictions
     )
     frame_has_critical = any(classify_zone(truth.forward_m).zone == "critical_danger" for truth in frame.ground_truth)
+    false_brake_objects = 0
+    matched_prediction_indices = {prediction_index for prediction_index, _ in pairs}
+    for prediction_index, (prediction, _) in enumerate(frame.predictions):
+        distance = _prediction_distance(prediction)
+        if distance is None or classify_zone(distance).zone != "critical_danger":
+            continue
+        if not frame_has_critical:
+            false_brake_objects += 1
+        elif prediction_index in matched_prediction_indices:
+            truth_index = next(
+                pair_truth_index
+                for pair_prediction_index, pair_truth_index in pairs
+                if pair_prediction_index == prediction_index
+            )
+            if classify_zone(included[truth_index].forward_m).zone != "critical_danger":
+                false_brake_objects += 1
     return {
         "tp": tp,
         "fp": fp,
@@ -178,6 +194,7 @@ def _view_frame_metrics(frame: FrameRecord, corridor_limit_m: float | None) -> d
         "critical_total": critical_total,
         "critical_detected": critical_detected,
         "predicted_critical": predicted_critical,
+        "false_brake_objects": false_brake_objects,
         "frame_has_critical": int(frame_has_critical),
         "frame_false_brake": int(not frame_has_critical and predicted_critical > 0),
         "included_ground_truth": len(included),
@@ -205,7 +222,7 @@ def _aggregate(frame_metrics: Sequence[dict[str, float | int]]) -> dict[str, flo
         "distance_mae_m": sums.get("distance_error_sum", 0.0) / sums.get("distance_count", 1),
         "distance_absrel": sums.get("absrel_sum", 0.0) / sums.get("distance_count", 1),
         "critical_zone_recall": sums.get("critical_detected", 0.0) / critical_total if critical_total else float("nan"),
-        "false_brake_rate_per_object": sums.get("predicted_critical", 0.0) / noncritical_objects if noncritical_objects else float("nan"),
+        "false_brake_rate_per_object": sums.get("false_brake_objects", 0.0) / noncritical_objects if noncritical_objects else float("nan"),
         "false_brake_rate_per_frame": sums.get("frame_false_brake", 0.0) / no_critical_frames if no_critical_frames else float("nan"),
     }
 
