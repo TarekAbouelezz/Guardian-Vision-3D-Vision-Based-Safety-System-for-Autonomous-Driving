@@ -95,10 +95,28 @@ def evaluate_model(model_path: Path, image_dir: Path, test_ids: Path, kitti_labe
     return rows
 
 
-def train(weights: Path, data_yaml: Path, output_dir: Path, epochs: int, imgsz: int, device: str) -> Path:
+def train(
+    weights: Path,
+    data_yaml: Path,
+    output_dir: Path,
+    epochs: int,
+    imgsz: int,
+    device: str,
+    batch: int,
+    workers: int,
+) -> Path:
     """Fine-tune YOLO11n and return the best checkpoint."""
     model = YOLO(str(weights))
-    result = model.train(data=str(data_yaml), epochs=epochs, imgsz=imgsz, device=device, project=str(output_dir), name="guardian_yolo11n")
+    result = model.train(
+        data=str(data_yaml),
+        epochs=epochs,
+        imgsz=imgsz,
+        device=device,
+        batch=batch,
+        workers=workers,
+        project=str(output_dir),
+        name="guardian_yolo11n",
+    )
     best = Path(result.save_dir) / "weights" / "best.pt"
     if not best.exists():
         raise FileNotFoundError(f"Training completed without a best checkpoint: {best}")
@@ -113,12 +131,18 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--imgsz", type=int, default=1280)
     parser.add_argument("--device", default="cpu")
+    parser.add_argument("--batch", type=int, default=4)
+    parser.add_argument("--workers", type=int, default=0)
     parser.add_argument("--train", action="store_true")
     parser.add_argument("--evaluate", action="store_true")
     parser.add_argument("--output", type=Path, default=Path("outputs/results/distance_metrics.csv"))
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
-    model_path = train(args.weights, args.data, Path("outputs/training"), args.epochs, args.imgsz, args.device) if args.train else args.weights
+    model_path = (
+        train(args.weights, args.data, Path("outputs/training"), args.epochs, args.imgsz, args.device, args.batch, args.workers)
+        if args.train
+        else args.weights
+    )
     if args.evaluate:
         rows = evaluate_model(model_path, Path("dataset/images"), Path("dataset/yolo/test.txt"), Path("dataset/labels"), args.output, args.imgsz)
         for row in rows:

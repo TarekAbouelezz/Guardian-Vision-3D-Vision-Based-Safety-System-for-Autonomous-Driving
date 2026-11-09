@@ -106,3 +106,17 @@ confidence, matching, zone, and geometric-depth settings supplied on the
 command line or in its documented defaults. Any future threshold selection
 must use training/validation data only and be recorded separately.
 
+## False-brake metric table
+
+| Metric | Definition | Denominator | Version |
+|---|---|---|---|
+| False-brake per object | Predicted critical objects that are not a matched ground-truth critical object. | All predicted critical objects in the selected view. | v3 follow-up |
+| False-brake per frame | A frame has at least one predicted critical object and no ground-truth critical pedestrian in the selected view. | All evaluated frames. | v3 follow-up |
+| False-brake per object | Critical predictions that are unmatched or matched to non-critical truth after the v2 corridor filtering rule. | Predicted critical objects after v2 corridor filtering. | v2 |
+| False-brake per frame | A frame-level critical prediction with no critical ground truth after the v2 corridor filtering rule. | Evaluated frames after v2 corridor filtering. | v2 |
+
+All versions use confidence-ordered one-to-one matching at IoU >= 0.5. The
+critical threshold is 7 m. The primary corridor is
+`abs(ground_truth_lateral_m) <= 2 m` and `ground_truth_forward_m <= 30 m`;
+predictions are filtered by projected geometric position. Sequence-bootstrap
+confidence intervals resample complete sequences, not individual frames.

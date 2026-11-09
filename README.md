@@ -7,7 +7,7 @@ with uncertainty, risk zones, and a vehicle action policy.
 
 ## Project status
 
-### Implemented and verified
+### Implemented
 
 - CARLA KITTI-style annotation inspection and conversion to YOLO format.
 - Sequence/scenario-disjoint train/validation/test splitting.
@@ -23,14 +23,28 @@ with uncertainty, risk zones, and a vehicle action policy.
 - Evaluation helpers for distance metrics, zone confusion, critical recall,
   false-brake rate, timing hooks, CSVs, and plots.
 - Zone-coloured output images with distance labels and action banners.
-- Unit tests for labels, geometry, risk logic, and evaluation metrics.
+
+Depth Anything V2, MiDaS/DPT, and Metric3D-named backends are implemented
+behind the factory, but they have not been run end to end.
+
+### Verified by tests or runs
+
+- Label conversion from the CARLA annotations.
+- Camera back-projection geometry.
+- Covariance construction.
+- Risk-zone logic and action selection.
+- Evaluation metric helpers.
+- Geometric pipeline smoke tests on 100 and 200 images.
+- Complete geometric pipeline run on 6,567 images.
+- Unit test suite covering labels, geometry, risk logic, and evaluation.
 
 The latest geometric pipeline was executed successfully on:
 
-| Smoke test | Input images | Output images | Exit code |
-|---|---:|---:|---:|
-| 100-image run | 100 | 100 | 0 |
-| 200-image run | 200 | 200 | 0 |
+
+| Smoke test    | Input images | Output images | Exit code |
+| ------------- | -----------: | ------------: | --------: |
+| 100-image run |          100 |           100 |         0 |
+| 200-image run |          200 |           200 |         0 |
 
 These smoke tests used `yolo11n.pt`, the geometric estimator, and CPU
 inference. They verify runtime integration and output generation; they are not
@@ -67,21 +81,22 @@ positive when its IoU with a ground-truth pedestrian box was at least 0.50.
 Distance was estimated with the geometric baseline from the predicted box
 height.
 
-| Metric | Result |
-|---|---:|
-| True positives | 5,538 |
-| False positives | 1,332 |
-| False negatives | 4,035 |
-| Precision | **80.61%** |
-| Recall | **57.85%** |
-| F1 score | **67.36%** |
-| Frame presence accuracy | **86.51%** |
-| Matched distance samples | 5,538 |
-| Distance MAE | **2.15 m** |
-| Distance AbsRel | **11.78%** |
-| Critical-zone recall | **90.71%** |
-| False-brake rate | **3.21%** |
-| Mean inference time | **70.13 ms/image** |
+
+| Metric                   |             Result |
+| ------------------------ | -----------------: |
+| True positives           |              5,538 |
+| False positives          |              1,332 |
+| False negatives          |              4,035 |
+| Precision                |         **80.61%** |
+| Recall                   |         **57.85%** |
+| F1 score                 |         **67.36%** |
+| Frame presence accuracy  |         **86.51%** |
+| Matched distance samples |              5,538 |
+| Distance MAE             |         **2.15 m** |
+| Distance AbsRel          |         **11.78%** |
+| Critical-zone recall     |         **90.71%** |
+| False-brake rate         |          **3.21%** |
+| Mean inference time      | **70.13 ms/image** |
 
 Run the evaluation again with:
 
@@ -99,74 +114,133 @@ they are not fine-tuned-model results. Frame presence accuracy should not be
 confused with object recall: it only measures whether a frame contains at
 least one predicted pedestrian when the labels contain at least one.
 
-## Strengths and limitations
+### How to read these numbers
 
-### Strengths
+- Frame presence accuracy is not object recall; it measures frame-level
+  pedestrian presence rather than individual pedestrian detections.
+- Relative-depth values are not metres without a calibration file.
 
-- Modular detector/depth factories make it possible to compare models without
-  rewriting the pipeline.
-- Sequence-disjoint dataset splitting reduces leakage from adjacent video
-  frames.
-- The geometric baseline is transparent and uses known camera intrinsics and
-  pedestrian height.
-- The system reports uncertainty through a 3D Gaussian and makes the action
-  policy explicit.
-- The safety-oriented metrics include critical-zone recall and false-brake
-  rate, not only detector accuracy.
-- The complete dataset can be processed reproducibly and exported as images,
-  video, JSON, and CSV.
+v1 critical-zone recall (90.71%) is superseded: v2 computes it with all
+ground-truth critical pedestrians as the denominator and gives 65.96%.
 
-### Limitations and disadvantages
+### Evaluation v2 (corridor protocol)
 
-- The detector identifies pedestrians, not pedestrian intent. It can detect a
-  person walking beside the road or facing away who will never cross the
-  vehicle path. This can create unnecessary warnings or alarms.
-- There is currently no road geometry, drivable-area mask, crosswalk map,
-  pedestrian trajectory, pose, velocity, or time-to-collision model.
-  Therefore the action policy is distance-based rather than path-aware.
-- The pretrained baseline misses distant and very small pedestrians, which is
-  reflected by the 57.85% object recall. Fine-tuning is still required for
-  the final comparison.
-- Geometric distance assumes an approximately known pedestrian height and
-  reliable box height. Occlusion, truncation, detector errors, and unusual
-  poses can produce large distance errors.
-- Relative-depth models require calibration using training data. Without a
-  fitted calibration file, their values must not be interpreted as metres.
-- The current Gaussian is constructed for uncertainty representation, but the
-  zone decision uses the point distance rather than propagating covariance
-  probabilistically.
-- The reported frame accuracy is an auxiliary metric and can look high even
-  when object-level recall is low.
-- CPU inference is convenient but may not satisfy real-time requirements at
-  higher input resolutions or with transformer depth models.
-- CARLA imagery and synthetic labels may not represent all real-world
-  lighting, camera, weather, traffic, and pedestrian behaviours.
-- The current evaluation treats every pedestrian equally and does not model
-  occlusion severity or whether the pedestrian is actually in the ego
-  vehicle's collision corridor.
+The v2 protocol reports all pedestrians, the primary 2.0 m corridor, and
+separate 1.5 m and 3.0 m sensitivity corridors. The primary corridor uses
+ground-truth `|lateral| <= 2.0 m` and `forward <= 30 m`; pedestrians outside
+the selected corridor are ignored.
 
-### Still required for the final research submission
 
-- Run the complete YOLO fine-tuning job and save the resulting checkpoint.
-- Run pretrained **and** fine-tuned detector evaluation over the complete test
-  split and report the actual recall/mAP50 values for every distance bin.
-- Fit and persist calibration parameters for each relative-depth model using
-  training data only. The repository currently provides the calibration class,
-  but does not provide a complete dataset calibration command.
-- Run Depth Anything V2, MiDaS/DPT, and Metric3D experiments end-to-end and
-  record their MAE, AbsRel, inference time, zone metrics, and plots.
-- Validate the final thresholds against labelled ground-truth zones and
-  vehicle-speed scenarios.
-- Integrate the Gaussian uncertainty into a probabilistic risk decision. The
-  current runtime constructs the Gaussian, but zone classification currently
-  uses the point distance only.
-- Replace or explicitly document the `Metric3D` and `ZoeDepth` compatibility
-  backends: they currently use transformer relative-depth implementations,
-  not dedicated Metric3D/ZoeDepth model architectures.
-- Implement RT-DETR and GroundingDINO if alternative detector comparisons are
-  required; those classes remain explicit `NotImplementedError` placeholders.
-- Add a reproducible results table and plots generated from the final test
-  split to the report.
+| View                   | Precision | Recall |     F1 | Distance MAE | AbsRel | Critical recall | False-brake/frame | False-brake/object |
+| ---------------------- | --------: | -----: | -----: | -----------: | -----: | --------------: | ----------------: | -----------------: |
+| All pedestrians        |    80.57% | 57.82% | 67.32% |       2.15 m | 11.79% |          65.96% |             2.82% |              2.50% |
+| Primary corridor 2.0 m |    46.43% | 69.66% | 55.72% |       1.20 m | 13.13% |          27.75% |             2.82% |             26.20% |
+| Corridor 1.5 m         |    39.73% | 69.07% | 50.44% |       1.22 m | 13.33% |          20.11% |             2.82% |             51.56% |
+| Corridor 3.0 m         |    55.26% | 69.26% | 61.47% |       1.17 m | 13.02% |          45.17% |             2.82% |             14.08% |
+
+
+| Empty-frame metric              | Result |
+| ------------------------------- | -----: |
+| Empty frames                    |  1,862 |
+| False positives                 |     22 |
+| False positives per empty frame | 0.0118 |
+| Empty frames with a false alarm |  0.97% |
+| Frame precision                 | 99.53% |
+| Frame recall                    | 81.55% |
+| Frame specificity               | 99.03% |
+
+The primary corridor contains 1,661 ground-truth pedestrians; the 1.5 m and
+3.0 m sensitivity corridors contain 1,274 and 2,381 respectively. The v2
+report is written to `outputs/results_v2/`.
+
+### Test-only v3 comparison
+
+The following comparison uses the 994-frame test split only
+(`dataset/yolo/test.txt`), with the existing `guardian_yolo11n-3` checkpoint
+used unchanged. The older 6,567-frame results include training data and are
+not directly comparable with this test-only evaluation.
+
+| Metric | Old pretrained full-dataset result | New pretrained test result | New fine-tuned test result |
+| ------ | ---------------------------------: | -------------------------: | -------------------------: |
+| Precision | 80.61% | 83.25% | 96.30% |
+| Recall | 57.85% | 53.75% | 85.13% |
+| F1 score | 67.36% | 65.61% | 90.21% |
+| mAP50 | Not reported | 45.64% | 85.30% |
+| mAP50-95 | Not reported | 14.16% | 58.32% |
+| Distance MAE | 2.15 m | 2.34 m | 3.40 m |
+| Distance AbsRel | 11.78% | 13.01% | 15.18% |
+| Critical-zone recall | 90.71% (superseded) | 55.00% | 60.00% |
+| Mean inference time | 70.13 ms/image | 49.22 ms/image | 53.45 ms/image |
+
+The earlier Ultralytics result of mAP50 91.96% and mAP50-95 61.95% is
+superseded and untrusted because no surviving artifact identifies its YAML,
+split, or checkpoint. The reproducible test-only fine-tuned result is mAP50
+85.30% and mAP50-95 58.32%.
+
+Evidence: `outputs/results/full/full_evaluation.json`,
+`outputs/results_v3/ultralytics_val_metrics.json`,
+`outputs/results_v3/finetuned_best_report.json`, and
+`outputs/results_v3/pretrained_report.json`.
+
+## Strengths
+
+- **Own evaluation dataset.** The project uses 6,567 CARLA frames and 9,573
+  pedestrian boxes with exact ground-truth distance and occlusion values,
+  including day/night and varied weather conditions. The dataset was created
+  from scratch for the course rather than copied from an external benchmark.
+- **Leakage-aware protocol.** Splits are made by `run_id::scenario`, so
+  adjacent frames from the same sequence are never distributed across
+  training, validation, and test sets.
+- **Safety-oriented evaluation.** The evaluation reports distance error,
+  critical-zone recall, and false-brake rate in addition to ordinary
+  detection precision and recall.
+- **Transparent baseline.** The geometric estimator is metric without
+  training, using the camera model and assumed pedestrian height, and gives a
+  clear reference for learned depth models.
+- **Explicit uncertainty.** Each detection can be represented by a 3D Gaussian,
+  while the action policy is configurable and can be derived from stopping
+  distance.
+- **Modular and reproducible.** Detector and depth factories, documented
+  commands, and unit tests make the experiments repeatable and extensible.
+- **Honest reporting.** Results from the pretrained detector and geometric
+  depth estimator are explicitly labelled as baseline results.
+
+## Limitations
+
+- **No pedestrian intent or path awareness.** The system has no road geometry,
+  drivable-area mask, crosswalk map, trajectory, pose, velocity, or
+  time-to-collision model. It can therefore warn about pedestrians beside the
+  road or facing away who will not cross the vehicle path. A corridor-based
+  evaluation is planned as a geometric relevance proxy, not as an intent
+  classifier.
+- **Small and distant pedestrians.** The baseline object recall is 57.85%,
+  with especially weak performance on small and distant boxes. Fine-tuning is
+  intended to improve this.
+- **Geometric distance assumptions.** The baseline assumes an approximately
+  1.7 m pedestrian height and a reliable predicted box height. Occlusion,
+  truncation, detector errors, and unusual poses can produce large distance
+  errors. Relative-depth models additionally require calibration on training
+  data before their values can be interpreted as metres.
+- **Uncertainty is not yet used in decisions.** The Gaussian is constructed
+  for uncertainty representation, but zone decisions currently use point
+  distance rather than propagating covariance probabilistically.
+- **Simulation only.** CARLA imagery and synthetic labels leave a sim-to-real
+  gap for lighting, sensors, weather, traffic, and pedestrian behaviour.
+- **Runtime.** CPU inference is about 70 ms/image and has not been validated
+  for real-time vehicle use, especially at higher input resolutions or with
+  transformer depth models.
+
+## Roadmap (remaining work)
+
+- [X]  Fine-tune YOLO and compare pretrained versus fine-tuned performance by
+  distance bin.
+- [ ]  Fit depth calibration on the training split and run all depth models
+  end to end.
+- [ ]  Replace or document the Metric3D/ZoeDepth compatibility backends.
+- [ ]  Validate zone thresholds against ground-truth zones and speed scenarios.
+- [ ]  Use Gaussian uncertainty in the risk decision.
+- [ ]  Add the corridor-based evaluation and final results tables/plots.
+- [ ]  Implement RT-DETR/GroundingDINO only if needed.
 
 ## Pipeline
 
