@@ -5,6 +5,9 @@ Applications of Computer Vision course at the University of Padova. It keeps
 the working Ultralytics YOLO detector and adds metric distance, 3D localization
 with uncertainty, risk zones, and a vehicle action policy.
 
+For presentation navigation, see [presentation/](presentation/), organized
+into model, CARLA data, and fine-tuning sections.
+
 ## Project status
 
 ### Implemented
